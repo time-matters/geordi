@@ -98,7 +98,17 @@ server 'app01.example.com',  user: \  'new_user'
     it 'ignores commented-out lines' do
       write_file 'config/deploy.rb', <<-TEXT
         server 'app01.example.com', user: 'new_user'
-        # server 'app02.example.com', user: 'old_user'
+        # set :user, 'old_user'
+      TEXT
+      expect(subject.user('app01.example.com')).to eq('new_user')
+    end
+
+    it 'ignores block-commented-out lines' do
+      write_file 'config/deploy.rb', <<~TEXT
+        server 'app01.example.com', user: 'new_user'
+        =begin
+        set :user, 'old_user'
+        =end
       TEXT
       expect(subject.user('app01.example.com')).to eq('new_user')
     end
@@ -151,6 +161,28 @@ server 'app01.example.com',  user: \  'new_user'
       expect(subject).to receive(:deploy_info).and_return ''
       expect(subject.servers).to match_array([])
     end
+
+    it 'does not return commented servers' do
+      expect(subject).to receive(:deploy_info).and_return <<~TEXT
+        server 'www.example-server-one.de', :app, :web, :db
+
+        # server 'www.example-server-two.de', :app, :web
+      TEXT
+
+      expect(subject.servers).to match_array(%w[www.example-server-one.de ])
+    end
+
+    it 'does not return block-commented servers' do
+      expect(subject).to receive(:deploy_info).and_return <<~TEXT
+        server 'www.example-server-one.de', :app, :web, :db
+
+        =begin
+        server 'www.example-server-two.de', :app, :web
+        =end
+      TEXT
+
+      expect(subject.servers).to match_array(%w[www.example-server-one.de ])
+    end
   end
 
   describe 'remote_root' do
@@ -167,6 +199,28 @@ server 'app01.example.com',  user: \  'new_user'
       expect(subject).to receive(:deploy_info).and_return ''
       expect { subject.remote_root }.to raise_error(TypeError, 'no implicit conversion of nil into String')
     end
+
+    it 'does not return commented servers' do
+      expect(subject).to receive(:deploy_info).and_return <<~TEXT
+        server 'www.example-server-one.de', :app, :web, :db
+
+        # server 'www.example-server-two.de', :app, :web
+      TEXT
+
+      expect(subject.servers).to match_array(%w[www.example-server-one.de ])
+    end
+
+    it 'does not return block-commented servers' do
+      expect(subject).to receive(:deploy_info).and_return <<~TEXT
+        server 'www.example-server-one.de', :app, :web, :db
+
+        =begin
+        server 'www.example-server-two.de', :app, :web
+        =end
+      TEXT
+
+      expect(subject.servers).to match_array(%w[www.example-server-one.de ])
+    end
   end
 
   describe '#env' do
@@ -178,6 +232,24 @@ server 'app01.example.com',  user: \  'new_user'
         set :rails_env, 'production'
       TEXT
       expect(subject.env).to eq('staging')
+    end
+
+    it 'disregards commented lines' do
+      expect(subject).to receive(:deploy_info).and_return <<-TEXT
+        # set :rails_env, 'staging'
+        set :rails_env, 'production'
+      TEXT
+      expect(subject.env).to eq('production')
+    end
+
+    it 'disregards block-commented lines' do
+      expect(subject).to receive(:deploy_info).and_return <<~TEXT
+        =begin
+        set :rails_env, 'staging'
+        =end
+        set :rails_env, 'production'
+      TEXT
+      expect(subject.env).to eq('production')
     end
 
     it 'returns nil if there is no rails_env variable in the deploy info' do
